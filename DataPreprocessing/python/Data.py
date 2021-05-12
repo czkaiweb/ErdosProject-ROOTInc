@@ -56,6 +56,12 @@ class Data():
 		self.Data_Validation = DataNoTrain.sample(frac = float(fraction[1])/sum(fraction), random_state = random_seed)
 		self.Data_Test = DataNoTrain.drop(self.Data_Validation.index)
 
+	def getData(self):
+		return self.Data
+	
+	def getDataCopy(self):
+		return self.Data.copy()
+
 	def getTrainData(self):
 		return self.Data_Train
 
