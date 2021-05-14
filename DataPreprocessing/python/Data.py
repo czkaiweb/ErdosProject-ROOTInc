@@ -5,14 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class Data():
-	def  __init__(self, fileName = None):
+	def  __init__(self, fileName = None, dataFrame = None):
 		self.fileList = []
 		self.DataList = []
 		self.Data = None
 		if fileName != None:
 			self.fileList.append(fileName)
+		if dataFrame != None and isinstance(df_data, pd.DataFrame):
+			self.Data = dataFrame
 		
-
 	def showFiles(self):
 		print(self.fileList)
 
@@ -80,7 +81,38 @@ class Data():
 	def getTestDataCopy(self):
 		return self.Data_Test.copy()
 
+	# group by feature set, elements in featureSet are (value of feature1, value of feature2, ...), column is a list of column names for these features
+	# name is the name of new column storing the  grouping index
+	def groupByFeature(self,featureSet=None, columns=None, name="GroupIndex"):
+		if featureSet == None:
+			print("No feature set to be grouped with")
+			return False 
+		
+		if len(list(featureSet)[0])!=len(columns):
+			print("length of features are not consistent with length of column list")
+		
+		if hasattr(self, 'Data'):
+			self.fillGroupIndex(data = self.Data, featureSet = featureSet, columnList = columns, name = name)
 
+		if hasattr(self, 'Data_Train'):
+			self.fillGroupIndex(data = self.Data_Train, featureSet = featureSet, columnList = columns, name = name)
+		
+		if hasattr(self, 'Data_Validation'):
+			self.fillGroupIndex(data = self.Data_Validation, featureSet = featureSet, columnList = columns, name = name)
 
+		if hasattr(self, 'Data_Test'):
+			self.fillGroupIndex(data = self.Data_Test, featureSet = featureSet, columnList = columns, name = name)
 
+	def fillGroupIndex(self, data = None, featureSet = None, columnList = None, name = "GroupIndex"):
+		featureList = [list(elem) for elem in list(featureSet)]
+		featureList.sort()
+
+		for i,row in data.iterrows():
+			rowfeatureList = []
+			for column in columnList:
+				rowfeatureList.append(row[column])
+			if rowfeatureList in featureList:
+				data.at[i,name] = int(featureList.index(rowfeatureList))
+			else:
+				data.at[i,name] = int(-1)
 		
