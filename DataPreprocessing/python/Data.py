@@ -38,6 +38,12 @@ class Data():
 				self.DataList.append(pd.read_csv(fileName))
 		self.Data = pd.concat(self.DataList,axis=0,ignore_index=True)
 
+	def factorizeData(self):
+		factorized_insured = pd.factorize(self.Data["Currently Insured"])
+		self.Data["Currently Insured"] = factorized_insured[0]
+		factorized_marital = pd.factorize(self.Data["Marital Status"])
+		self.Data["Marital Status"] = factorized_marital[0]
+
 	# split data into [train,validatio,test]
 	def splitData(self, fraction = [0.8,0,0.2], random_seed = 42):
 		if len(fraction) != 3 or type(fraction) != type([]):
