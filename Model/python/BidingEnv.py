@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class BidingEnv():
-	def __init__(self, initialBudget = 5000, numCustomer = 1000, randomSeed =42,rewardThreshold = 5):
+	def __init__(self, initialBudget = 5000, numCustomer = 1000, randomSeed =42,rewardThreshold = 0.1):
 		# env_status_space = [customer_status,budget status]
 		self.env_status_space = np.array(["",1,1,"",initialBudget])
 		self.auction_price_space = np.array([0.0])
@@ -44,15 +44,16 @@ class BidingEnv():
 
 	def getEnv(self):
 		customer_status= self.getCustomerInfo()
-		self.env_status_space = np.concatenate((customer_status,self.current_budget/self.initialBudget-0.5),axis=None)
+		#self.env_status_space = np.concatenate((customer_status,self.current_budget/self.initialBudget-0.5),axis=None)
+		self.env_status_space = np.concatenate((customer_status,self.current_budget),axis=None)
 
-	def step(self, bidingPrice):
-		if bidingPrice < self.rewardThreshold:
+	def step(self, biding):
+		if biding < self.rewardThreshold:
 			self.getEnv()
 			rewards, action, result = self.getRewards(isBiding = False)
 
 		else:
-			self.auction_price_space = np.array([bidingPrice])
+			self.auction_price_space = np.array([10])
 			self.current_budget = self.current_budget-self.auction_price_space
 			self.getEnv()
 			rewards, action, result = self.getRewards(isBiding = True)
@@ -73,6 +74,7 @@ class BidingEnv():
 			if bool(deal) == True:
 				return 130, True, True
 				#return 200
+				#return 100*customer_info[1], True, True
 			else:
 				return -10, True, False
 		else:

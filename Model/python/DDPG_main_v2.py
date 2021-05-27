@@ -16,12 +16,14 @@ import buffer
 
 
 
-MAX_EPISODES = 50
-MAX_STEPS = 1000
-MAX_BUFFER = 10000 #1000000
+MAX_EPISODES = 10
+MAX_STEPS = 10000
+MAX_BUFFER = 1000 #1000000
 MAX_TOTAL_REWARD = 100000
 HIGH_PRICE_CUT = 20
 INITIALBUDGET =  10000
+SCALE = 10
+BidingThreshold = 0.05
 
 
 # Load & Split data
@@ -55,9 +57,9 @@ print(data_test_copy.head(5))
 
 
 # Initialized the environment
-env = BidingEnv(initialBudget = INITIALBUDGET)
+env = BidingEnv(initialBudget = INITIALBUDGET,rewardThreshold = BidingThreshold)
 env.loadCustomerPool(data_train_copy)
-env_test = BidingEnv(initialBudget = INITIALBUDGET)
+env_test = BidingEnv(initialBudget = INITIALBUDGET,rewardThreshold = BidingThreshold)
 env_test.loadCustomerPool(data_test_copy)
 
 
@@ -80,48 +82,82 @@ print(' Action Max :- ', a_bound)
 ram = buffer.MemoryBuffer(MAX_BUFFER)
 trainer = TrainDDPG.Trainer(s_dim, a_dim, ram)
 
+TFTable = [0,0,0,0]
+
+
 for _ep in range(MAX_EPISODES):
-    observation = env.reset()
-    print('EPISODE :- ', _ep)
-    for r in range(MAX_STEPS):
-        state = np.float32(observation)
-        #print "shape of state is: " + str(state.shape)
-        action = trainer.get_exploration_action(state)
-        # if _ep%5 == 0:
-        #   # validate every 5th episode
-        #   action = trainer.get_exploitation_action(state)
-        # else:
-        #   # get action based on observation, use exploration policy here
-        #   action = trainer.get_exploration_action(state)
+	t = time.localtime()
+	current_time = time.strftime("%H:%M:%S", t)
+	RANDOMSEED = int(current_time.split(":")[-1])
+	env.seed(RANDOMSEED)
+	observation = env.reset()
+	print('EPISODE :- ', _ep)
+	ep_total_reward = 0
+	baseline_reward = 0
+	god_reward = 0
+	TFTable = [0,0,0,0]
+	for r in range(MAX_STEPS):
+		state = np.float32(observation)
+		#print "shape of state is: " + str(state.shape)
+		action = trainer.get_exploration_action(state)
+		# if _ep%5 == 0:
+		#   # validate every 5th episode
+		#   action = trainer.get_exploitation_action(state)
+		# else:
+		#   # get action based on observation, use exploration policy here
+		#   action = trainer.get_exploration_action(state)
 
-        new_observation, reward, done, info = env.step(action)
+		new_observation, reward, done, info = env.step(action*HIGH_PRICE_CUT)
 
-        # # dont update if this is validation
-        # if _ep%50 == 0 or _ep>450:
-        #   continue
+		if info == [True,True]:
+			TFTable[0] += 1
+			baseline_reward += 130
+			god_reward += 130
+		elif info == [False,True]:
+			TFTable[1] += 1
+			baseline_reward += 130
+			god_reward += 130
+		elif info == [True,False]:
+			TFTable[2] += 1
+			baseline_reward += -10
+		elif info == [False,False]:
+			TFTable[3] += 1
+			baseline_reward += -10
 
-        if done:
-            new_state = None
-        else:
-            new_state = np.float32(new_observation)
-            # push this exp in ram
-            ram.add(state, action, reward, new_state)
+		# # dont update if this is validation
+		# if _ep%50 == 0 or _ep>450:
+		#   continue
+		ep_total_reward += reward
+		if done:
+			new_state = None
+		else:
+			new_state = np.float32(new_observation)
+			# push this exp in ram
+			ram.add(state, action, reward, new_state)
 
-        observation = new_observation
+		observation = new_observation
 
-        # perform optimization
-        trainer.optimize()
-        if done:
-            break
+		# perform optimization
+		trainer.optimize(_ep==0)
+		if done:
+			break
 
-    # check memory consumption and clear memory
-    gc.collect()
-    # process = psutil.Process(os.getpid())
-    # print(process.memory_info().rss)
+	# check memory consumption and clear memory
+	gc.collect()
+	# process = psutil.Process(os.getpid())
+	# print(process.memory_info().rss)
+	TP,TN,FP,FN = TFTable
+	print(TFTable)
+	print("F1 score:  {}     Accu: {}      Recall: {}".format(TP/(TP+0.5*(FP+FN+0.0001)),TP/(FP+FP+0.0001),TP/(TP+FN+0.0001)))
+	print("EP_reward: {}".format(ep_total_reward))
+	print("Naive rewards: {}\n".format(baseline_reward))
+	#print("Gold rewards: {}\n".format(god_reward))
+	if _ep%100 == 0:
+		print(_ep)
+		#trainer.save_models(_ep)
 
-    if _ep%100 == 0:
-        print(_ep)
-        #trainer.save_models(_ep)
+
+	
 
 
 print('Completed episodes')
@@ -129,33 +165,38 @@ print('Completed episodes')
 
 #test
 total_reward = 0
-actionrec = []
-spendrec = []
-timerec = []
-env.dailyBudget = 100
-state = env.reset()
-for idx in range(288):
-    #print "count : "+str(idx)
-    state = Variable(torch.from_numpy(state.astype(float))).float()
-    action = trainer.actor.forward(state)
-    actionrec.append(action) #convert to [0,1] range for record
-    #print "action : "+str(action)
-    next_state, reward, done, _ = env.step(action)
-    timerec.append(next_state[1])
-    spendrec.append(next_state[0])
-    state = next_state
-    print("state : "+str(state))
-    #print "time : "+str(nz[0][2])+'---'+'budget: '+str(nz[0][3])
-    total_reward += reward
-
-#plot pacing signals
-y = actionrec
-x = [i for i in range(len(actionrec))]
-plt.plot(y)
-plt.show()
-#plot spendings
-
-y = spendrec
-x = timerec
-plt.plot(y)
-plt.show()
+baseline_reward = 0
+god_reward = 0
+#env.dailyBudget = 100
+state = env_test.reset()
+TFTable = [0,0,0,0]
+for idx in range(1000):
+	#print "count : "+str(idx)
+	state = np.float32(state)
+	#state = Variable(torch.from_numpy(state.astype(float))).float()
+	#action = trainer.actor.forward(state)
+	action = trainer.get_exploitation_action(state)
+	#actionrec.append(action) #convert to [0,1] range for record
+	#print "action : "+str(action)
+	next_state, reward, done, info = env_test.step(action*HIGH_PRICE_CUT)
+	state = next_state
+	#print "time : "+str(nz[0][2])+'---'+'budget: '+str(nz[0][3])
+	total_reward += reward 
+	if info == [True,True]:
+		TFTable[0] += 1
+		baseline_reward += 130
+		god_reward += 130
+	elif info == [False,True]:
+		TFTable[1] += 1
+		baseline_reward += 130
+		god_reward += 130
+	elif info == [True,False]:
+		TFTable[2] += 1
+		baseline_reward += -10
+	elif info == [False,False]:
+		TFTable[3] += 1
+		baseline_reward += -10
+print(TFTable)
+print ("DDPG rewards: {}\n".format(total_reward))
+print ("Naive rewards: {}\n".format(baseline_reward))
+print ("Gold rewards: {}\n".format(god_reward))

@@ -11,7 +11,7 @@ import UtilsDDPG
 import ModelDDPG
 
 BATCH_SIZE = 128
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 GAMMA = 0.99
 TAU = 0.001
 
@@ -65,7 +65,7 @@ class Trainer:
         new_action = max(0.0,min(1.0,new_action))
         return new_action
 
-    def optimize(self):
+    def optimize(self, hardupdate = False):
         """
         Samples a random batch from replay memory and performs optimization
         :return:
@@ -102,8 +102,12 @@ class Trainer:
         loss_actor.backward()
         self.actor_optimizer.step()
 
-        UtilsDDPG.soft_update(self.target_actor, self.actor, TAU)
-        UtilsDDPG.soft_update(self.target_critic, self.critic, TAU)
+        if hardupdate:
+            UtilsDDPG.hard_update(self.target_actor, self.actor)
+            UtilsDDPG.hard_update(self.target_critic, self.critic)
+        else:
+            UtilsDDPG.soft_update(self.target_actor, self.actor, TAU)
+            UtilsDDPG.soft_update(self.target_critic, self.critic, TAU)
 
         # if self.iter % 100 == 0:
         #   print 'Iteration :- ', self.iter, ' Loss_actor :- ', loss_actor.data.numpy(),\
