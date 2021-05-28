@@ -13,13 +13,12 @@ import torch.nn.functional as F
 from IPython.display import clear_output
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
-from BidingEnvt import BidingEnvi
+from BidingEnvtnew import BidingEnvi
 sys.path.append('/home/aniket/Documents/erdos/ErdosProject-ROOTInc/Model/python/')
 from Data import *
 #from DataPreprocessing.python.Data import *
 
 
-print(sys.path)
 data = Data()
 data.addFile("Root_Insurance_data.csv")
 data.loadData()
@@ -32,12 +31,11 @@ actionrec = []
 spendrec = []
 timerec = []
 state = env.reset()
-for idx in range(4000):
+for idx in range(10000):
         next_state, reward, done, _ = env.step(10)
         timerec.append(next_state[1])
         spendrec.append(next_state[0])
         state = next_state
-        #print "time : "+str(nz[0][2])+'---'+'budget: '+str(nz[0][3])
         total_reward += reward
 
         if done:

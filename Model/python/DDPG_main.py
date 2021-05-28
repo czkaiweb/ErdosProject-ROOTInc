@@ -26,19 +26,21 @@ HIGH_PRICE_CUT = 20         # cut at high end of biding price
 LR_A = 0.001                # learning rate for actor
 LR_C = 0.002                # learning rate for critic
 GAMMA = 0.99                # reward discount
-TAU = 0.01                  # soft replacement
+TAU = 0.001                  # soft replacement
 #MEMORY_CAPACITY = 6000     # size of replay buffer
 #BATCH_SIZE = 32             # update batchsize
 
-MEMORY_CAPACITY = 500     # size of replay buffer
-BATCH_SIZE = 32        
+MEMORY_CAPACITY = 1000     # size of replay buffer
+BATCH_SIZE = 512        
 
-MAX_EPISODES = 51          # total number of episodes for training
+MAX_EPISODES = 21          # total number of episodes for training
 MAX_EP_STEPS = 1000          # total number of steps for each episode
-TEST_PER_EPISODES = 1      # test the model per episodes
-VAR = 10                     # control exploration
+TEST_PER_EPISODES = 2      # test the model per episodes
+VAR = 4                     # control exploration
 
 INITIALBUDGET = 10000
+
+PRETRAIN = False
 
 class DDPG(object):
 	"""
@@ -49,8 +51,8 @@ class DDPG(object):
 		self.pointer = 0
 		self.a_dim, self.s_dim, self.a_bound = a_dim, s_dim, a_bound
 
-		W_init = tf.random_normal_initializer(mean=0, stddev=2.0)
-		b_init = tf.constant_initializer(1.0)
+		W_init = tf.random_normal_initializer(mean=0, stddev=1.0)
+		b_init = tf.constant_initializer(0.5)
 
 		def get_actor(input_state_shape, name=''):
 			"""
@@ -76,10 +78,12 @@ class DDPG(object):
 			"""
 			s = tf.keras.layers.Input(shape=(input_state_shape,), name='C_s_input')
 			a = tf.keras.layers.Input(shape=(input_action_shape,), name='C_a_input')
-			x = tf.keras.layers.Concatenate(axis=-1)([s, a])
-			x = tf.keras.layers.Dense(units=10, activation=tf.nn.relu, kernel_initializer=W_init, bias_initializer=b_init, name='C_l1')(x)
-			#x = tf.keras.layers.Dense(units=5, activation=tf.nn.relu, kernel_initializer=W_init, bias_initializer=b_init, name='C_l2')(x)
-			x = tf.keras.layers.Dense(units=1, kernel_initializer=W_init, bias_initializer=b_init, name='C_out')(x)
+			x_s = tf.keras.layers.Dense(units=8, activation=tf.nn.relu, kernel_initializer=W_init, bias_initializer=b_init, name='C_l1')(s)
+			x_s = tf.keras.layers.Dense(units=1, activation=tf.nn.relu, kernel_initializer=W_init, bias_initializer=b_init, name='C_l2')(x_s)
+			x_a = tf.keras.layers.Dense(units=2, activation=tf.nn.relu, kernel_initializer=W_init, bias_initializer=b_init, name='C_l3')(a)
+			x = tf.keras.layers.Concatenate(axis=-1)([x_s, x_a])
+			x = tf.keras.layers.Dense(units=1, kernel_initializer=W_init, bias_initializer=b_init, name='C_preout')(x)
+			#x = tf.keras.layers.Dense(units=1, kernel_initializer=W_init, bias_initializer=b_init, name='C_out')(x)
 			return tf.keras.models.Model(inputs=[s, a], outputs=x, name='Critic' + name)
 
 		self.actor = get_actor(s_dim)
@@ -118,7 +122,7 @@ class DDPG(object):
 
 
 	def ema_update(self):
-		# Update EMA with average method。
+		# Update EMA with average method
 		paras = self.actor.trainable_weights + self.critic.trainable_weights    
 		self.ema.apply(paras)                                                   
 		for i, j in zip(self.actor_target.trainable_weights + self.critic_target.trainable_weights, paras):
@@ -145,7 +149,7 @@ class DDPG(object):
 		br = bt[:, -self.s_dim - 1:-self.s_dim]         
 		bs_ = bt[:, -self.s_dim:]                       
 
-		# Critic：
+		# Critic:
 		# br + GAMMA * q_
 		with tf.GradientTape() as tape:
 			a_ = self.actor_target(bs_)
@@ -156,7 +160,7 @@ class DDPG(object):
 		c_grads = tape.gradient(td_error, self.critic.trainable_weights)
 		self.critic_opt.apply_gradients(zip(c_grads, self.critic.trainable_weights))
 
-		# Actor：
+		# Actor:
 		with tf.GradientTape() as tape:
 			a = self.actor(bs)
 			q = self.critic([bs, a])
@@ -167,7 +171,7 @@ class DDPG(object):
 		self.ema_update()
 
 
-	# 保存s，a，r，s_
+	# save s,a,r,s_
 	def store_transition(self, s, a, r, s_):
 		"""
 		Store data in data buffer
@@ -177,18 +181,11 @@ class DDPG(object):
 		:param s_: next state
 		:return: None
 		"""
-		# 整理s，s_,方便直接输入网络计算
 		s = s.astype(np.float32)
 		s_ = s_.astype(np.float32)
 
-		#把s, a, [r], s_横向堆叠
 		transition = np.hstack((s, a, [r], s_))
-
-		#pointer是记录了曾经有多少数据进来。
-		#index是记录当前最新进来的数据位置。
-		#所以是一个循环，当MEMORY_CAPACITY满了以后，index就重新在最底开始了
 		index = self.pointer % MEMORY_CAPACITY  # replace the old memory with new memory
-		#把transition，也就是s, a, [r], s_存进去。
 		self.memory[index, :] = transition
 		self.pointer += 1
 
@@ -282,6 +279,7 @@ if __name__ == '__main__':
 	#Call DDPG
 	ddpg = DDPG(a_dim, s_dim, a_bound)
 
+
 	#Trainning
 	if args.train:  # train
 		
@@ -289,8 +287,28 @@ if __name__ == '__main__':
 		reward_baseline_buffer = []
 		reward_god_buffer = []
 		t0 = time.time()        #Timer
+
+		# Pre-train
+		if PRETRAIN:
+			s = env.reset()
+			for iPre in range(100000):
+				if iPre%10000 == 0:
+					print("pre-train: #{}".format(iPre))
+				a = ddpg.choose_action(s)      
+				a = np.clip(np.random.normal(a, VAR), -20, 20)
+				s_, r, done, info = env.step(a)
+				ddpg.store_transition(s, a/20, r/100, s_)
+
+				if done:
+					s = env.reset()
+			ddpg.learn()
+
 		for i in range(MAX_EPISODES):
 			t1 = time.time()
+			t = time.localtime()
+			current_time = time.strftime("%H:%M:%S", t)
+			RANDOMSEED = int(current_time.split(":")[-1])
+			env.seed(RANDOMSEED)
 			s = env.reset()
 			ep_reward = 0       #Reward of current EP
 			ep_baseline_reward = 0
@@ -303,7 +321,7 @@ if __name__ == '__main__':
 
 				# Interact with enviroment
 				s_, r, done, info = env.step(a)
-				# Save s，a，r，s_
+				# Save s,a,r,s_
 				ddpg.store_transition(s, a/20, r/100, s_)
 
 				# fit Q when pool is full
@@ -312,13 +330,13 @@ if __name__ == '__main__':
 
 				#step forward
 				s = s_  
-				ep_reward += r  #记录当前EP的总reward
+				ep_reward += r
 				if j == MAX_EP_STEPS - 1 or done:
 					print(
 						'\rEpisode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
 							i, MAX_EPISODES, ep_reward,
 							time.time() - t1
-						), end=''
+						)
 					)
 				plt.show()
 				if done:

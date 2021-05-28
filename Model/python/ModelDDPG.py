@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-EPS = 0.003
+EPS = 100 #0.03
 
 def fanin_init(size, fanin=None):
     fanin = fanin or size[0]
@@ -92,7 +92,8 @@ class Actor(nn.Module):
         """
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
-        action = 20*F.sigmoid(self.fc4(x))
+        #action = self.fc4(x)
+        action = torch.sigmoid(self.fc4(x))
         #print("action type : " + str(type(action)) + "action_lim" + str(type(self.action_lim)) )
 
         return action
