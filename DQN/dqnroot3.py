@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from IPython.display import clear_output
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
-from BidingEnvtnew import BidingEnvi
+from BidingEnvt import BidingEnvi
 from Data import *
 #from DataPreprocessing.python.Data import *
 
@@ -34,7 +34,7 @@ env.loadCustomerPool(df_data)
 
 #the range of possible bidding prices from 0 to action_space_size
 action_space_size = 20
-num_iters = 20
+num_iters = 60
 epsilon_start = 1.0
 epsilon_final = 0.01
 epsilon_decay = num_iters
@@ -114,9 +114,8 @@ for iters in range(1,num_iters+1):
     score = 0
     budgetval = 10000.0
     env.intialBudget = budgetval
-
-    for i in range(5000):
-        epsilon = epsilon_by_frame(i)
+    epsilon = epsilon_by_frame(iters)
+    for i in range(2000):
         action = model.act(state, epsilon)
         next_state, reward, done, _ = env.step(action)
 
