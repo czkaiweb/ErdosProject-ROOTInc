@@ -1,3 +1,5 @@
+##This code checks baselines for the total reward, and policies sold for the constant bidding strategy of 10 for every customer
+
 import math, random
 import sys
 
@@ -23,16 +25,23 @@ data = Data()
 data.addFile("Root_Insurance_data.csv")
 data.loadData()
 df_data = data.getDataCopy()
-env = BidingEnvi()
+env = BidingEnvi(1000)
 env.loadCustomerPool(df_data)
+
 
 total_reward = 0
 actionrec = []
 spendrec = []
 timerec = []
+nsold=0
 state = env.reset()
 for idx in range(10000):
-        next_state, reward, done, _ = env.step(10)
+        print(env.state[0])
+        next_state, reward, done, result = env.step(10)
+
+        if result==True:
+            nsold+=1
+
         timerec.append(next_state[1])
         spendrec.append(next_state[0])
         state = next_state
@@ -47,4 +56,4 @@ plt.plot(y)
 plt.xlabel("time")
 plt.ylabel("Remaining budget")
 plt.show()
-print ("total reward is" + str(total_reward), 'remain budget is' + str(env.state[0]))
+print ("total reward is" + str(total_reward), 'remain budget is' + str(env.state[0]), 'nsold is' + str(nsold))

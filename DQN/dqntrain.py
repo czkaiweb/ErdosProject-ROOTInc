@@ -29,12 +29,12 @@ data = Data()
 data.addFile("Root_Insurance_data.csv")
 data.loadData()
 df_data = data.getDataCopy()
-env = BidingEnvi()
+env = BidingEnvi(1000)
 env.loadCustomerPool(df_data)
 
 #the range of possible bidding prices from 0 to action_space_size
-action_space_size = 20
-num_iters = 20
+action_space_size = 2
+num_iters = 300
 epsilon_start = 1.0
 epsilon_final = 0.01
 epsilon_decay = num_iters
@@ -92,7 +92,7 @@ def compute_td_loss(batch_size):
 
 
 batch_size = 32
-gamma = 0.99
+gamma = 0.9
 
 losses = []
 
@@ -105,20 +105,26 @@ if USE_CUDA:
 optimizer = optim.Adam(model.parameters())
 
 replay_buffer = ReplayBuffer(20000)
-scores, eps_history, rembud =[],[],[]
+scores, eps_history, soldhist, rembud =[],[],[],[]
 
 #train
 for iters in range(1,num_iters+1):
+    nsold=0
     print(iters)
     state = env.reset()
     score = 0
-    budgetval = 10000.0
+    budgetval = 1000.0
     env.intialBudget = budgetval
+    epsilon = epsilon_by_frame(iters)
 
-    for i in range(5000):
-        epsilon = epsilon_by_frame(i)
+    for i in range(10000):
+
         action = model.act(state, epsilon)
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, result = env.step(action)
+
+        if result==True:
+            nsold+=1
+
 
         if state is not None and next_state is not None and done==False:
             augstate = np.concatenate([state,[env.initialBudget[0]]])
@@ -136,16 +142,18 @@ for iters in range(1,num_iters+1):
             losses.append(loss.item())
 
     rembud.append(env.state[0])
+    soldhist.append(nsold)
     scores.append(score)
     eps_history.append(epsilon)
     avg_score = np.mean(scores)
     print('episode ', iters, 'score %.2f' % score,
             'average score %.2f' % avg_score,
-            'Remaining budget %.2f' % env.state[0])
+            'Remaining budget %.2f' % env.state[0], 'nsold is' + str(nsold))
 
-print('Maximum reward=', max(scores),'at epsilon=', eps_history[scores.index(max(scores))])
+print('Maximum reward=', max(scores),'at episode=', scores.index(max(scores)))
+print('Maximum policies sold=', max(soldhist), 'at episode=', soldhist.index(max(soldhist)))
 x = [i+1 for i in range(num_iters)]
 filename = 'rewards_iters.png'
-plotLearning(x, scores, eps_history, filename)
+plotLearning(x, scores, eps_history, filename, 0)
 
 

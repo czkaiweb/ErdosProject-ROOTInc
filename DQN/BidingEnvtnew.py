@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class BidingEnvi():
-	def __init__(self, initialBudget = 10000, numCustomer = 1000, randomSeed = 42):
+	def __init__(self, initialBudget, numCustomer = 1000, randomSeed = 42):
 		# env_status_space = [customer_status,budget status]
 		self.env_status_space = np.array(["",1,1,"",initialBudget])
 		self.auction_price_space = np.array([0.0], dtype=np.float32)
@@ -45,9 +45,9 @@ class BidingEnvi():
 		customer_status= self.getCustomerInfo()
 		self.env_status_space = np.concatenate((customer_status,self.current_budget/self.initialBudget-0.5),axis=None)
 
-	def step(self, bidingPrice):
+	def step(self, biding):
 		customer_info = self.customerPool[self.current_customer]
-		if bidingPrice < 10:
+		if biding==0:
 			self.getEnv()
 			rewards, action, result = self.getRewards(isBiding = False)
 
@@ -55,8 +55,8 @@ class BidingEnvi():
 			self.getEnv()
 			rewards, action, result = self.getRewards(isBiding = True)
 		else:
-			self.auction_price_space = np.array([bidingPrice])
-			self.current_budget = self.current_budget-self.auction_price_space
+			#self.auction_price_space = np.array([bidingPrice])
+			self.current_budget = self.current_budget- 10
 			self.getEnv()
 			rewards, action, result = self.getRewards(isBiding = True)
 
@@ -66,7 +66,7 @@ class BidingEnvi():
 		else:
 		 	stop=False
 
-		info = {}
+		info = result
 		self.state[0]=self.current_budget
 
 		return self.state, rewards, stop, info
