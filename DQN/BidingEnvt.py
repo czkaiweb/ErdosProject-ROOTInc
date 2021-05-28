@@ -46,14 +46,25 @@ class BidingEnvi():
 		self.env_status_space = np.concatenate((customer_status,self.current_budget/self.initialBudget-0.5),axis=None)
 
 	def step(self, bidingPrice):
+		customer_info = self.customerPool[self.current_customer]
+
 		if bidingPrice < 10:
 			self.getEnv()
-			rewards = 0
+			rewards=0
 		else:
 			self.auction_price_space = np.array([bidingPrice])
-			self.current_budget = self.current_budget-self.auction_price_space
-			self.getEnv()
-			rewards = self.getRewards()
+			click = customer_info[-2]
+			if click == False:
+            	rewards = 0
+            elif customer_info[-1]==1:
+            	rewards = 100
+            	self.current_budget = self.current_budget - self.auction_price_space
+            else :
+                 rewards = -10
+                 self.current_budget = self.current_budget - self.auction_price_space
+
+            self.getEnv()
+
 
 		if self.current_budget <= 0:
 			stop = True
@@ -70,7 +81,7 @@ class BidingEnvi():
 		# Very naive version: fixed reward based on boolean
 		deal = customer_info[-1]
 		if bool(deal) == True:
-			return 100*customer_info[1]
+			return 100
 			#return 200
 		else:
 			return -10
